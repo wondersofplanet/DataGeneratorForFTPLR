@@ -10,6 +10,7 @@ public class CombinedLogGenerator {
     private static final String CONNECTION_FILE = "connection.txt";
     private static final String LOG_FILES_COMMANDS_OUTPUT = "1)OUTPUT-CreateLogFilesCommands.txt";
     private static final String FTP_LOG_MOVER_OUTPUT = "2)OUTPUT-DownloadLogsCode.txt";
+    private static final String STOP_COMMAND_OUTPUT = "3)OUTPUT-StopLogInServerCommands.txt";
     private static final String LOG_FILE_PATH = "/home/batman/";
     private static final String WINDOWS_LOG_FILE_PATH = "C:\\abc";
     private static final String APP_NAME = "appname";
@@ -25,6 +26,7 @@ public class CombinedLogGenerator {
             // Generate commands
             generateLogFilesCommands();
             generateFTPLogMoverCommands();
+            generateStopLogInServerCommands();
         } catch (RuntimeException e) {
             System.err.println(e.getMessage());
             // Stop execution
@@ -129,7 +131,55 @@ public class CombinedLogGenerator {
         }
     }
 
-    private static void clearFile(String filePath) throws IOException {
+    
+  
+    private static void generateStopLogInServerCommands() {
+        try {
+            // Clear the output file
+            clearFile(STOP_COMMAND_OUTPUT);
+
+            BufferedReader reader = new BufferedReader(new FileReader(INPUT_SERVERS_FILE));
+            BufferedWriter writer = new BufferedWriter(new FileWriter(STOP_COMMAND_OUTPUT));
+
+            // Skip the first line
+            reader.readLine();
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    String server = line.trim();
+                    
+                    // Extract last part of the server name
+                    String[] parts = server.split("\\.");
+                    String lastPart = parts[parts.length - 1];
+                    // Generating timestamp
+                    String timestamp = new SimpleDateFormat("MMM_dd").format(Calendar.getInstance().getTime());
+                    String logFileName = APP_NAME + "_log_" + timestamp + "_" + lastPart + ".log";
+
+                    // Write the count command
+                    writer.write(server + " count=$(ps aux | grep -v grep | grep -c \"" + logFileName + "\"); if [ $count -gt 0 ]; then ps aux | grep \"" + logFileName + "\" | grep -v grep; else echo \"No processes found with name '" + logFileName + "'\"; fi\n");
+
+                    // Write the kill command
+                    writer.write(server + " kill $(pgrep -f \"" + logFileName + "\")\n");
+
+                    // Write the "again repeat" command
+                    writer.write(server + " count=$(ps aux | grep -v grep | grep -c \"" + logFileName + "\"); if [ $count -gt 0 ]; then ps aux | grep \"" + logFileName + "\" | grep -v grep; else echo \"No processes found with name '" + logFileName + "'\"; fi\n");
+                }
+            }
+
+            reader.close();
+            writer.close();
+
+            System.out.println("Generated " + STOP_COMMAND_OUTPUT + " successfully!");
+        } catch (IOException e) {
+            System.err.println("Error reading or writing files: " + e.getMessage());
+        }
+    }
+
+    
+    
+
+        private static void clearFile(String filePath) throws IOException {
         PrintWriter writer = new PrintWriter(filePath);
         writer.close();
     }
