@@ -77,7 +77,9 @@ public class CombinedLogGenerator {
     private static void generateFTPLogMoverCommands() {
         try {
             // Clear the output file
-            clearFile(FTP_LOG_MOVER_OUTPUT);
+        	// Clear the output file and set the header
+            clearForFTPLogMoverFile("host,port,user,password,remoteFilePath,localFolderPath");
+
 
             // Read inputServers.txt and store servers in a set
             Set<String> serversSet = new HashSet<>();
@@ -130,6 +132,14 @@ public class CombinedLogGenerator {
     private static void clearFile(String filePath) throws IOException {
         PrintWriter writer = new PrintWriter(filePath);
         writer.close();
+    }
+    
+    private static void clearForFTPLogMoverFile(String headerText) {
+        try (PrintWriter writer = new PrintWriter(new FileWriter(FTP_LOG_MOVER_OUTPUT))) {
+            writer.println(headerText);
+        } catch (IOException e) {
+            System.err.println("Error writing to forFTPLogMover.txt: " + e.getMessage());
+        }
     }
 
     private static void checkMissingServers() {
