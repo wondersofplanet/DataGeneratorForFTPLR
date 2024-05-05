@@ -1,0 +1,4 @@
+192.168.1.100 echo Hello, the memory size of $(hostname -I) is $(awk '/MemTotal/ {print $2}' /proc/meminfo)
+192.168.1.100 nohup vmstat 5 >> appname_log_May_05_211.log &
+192.168.1.100 echo Hello, the memory size of $(hostname -I) is $(awk '/MemTotal/ {print $2}' /proc/meminfo)
+192.168.1.100 nohup vmstat 5 >> appname_log_May_05_211.log &
