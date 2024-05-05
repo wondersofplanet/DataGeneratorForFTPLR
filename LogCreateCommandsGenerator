@@ -8,8 +8,8 @@ public class CombinedLogGenerator {
     // Define constants for file paths and other configurable values
     private static final String INPUT_SERVERS_FILE = "inputServers.txt";
     private static final String CONNECTION_FILE = "connection.txt";
-    private static final String LOG_FILES_COMMANDS_OUTPUT = "createLogFilesCommands.txt";
-    private static final String FTP_LOG_MOVER_OUTPUT = "forFTPLogMover.txt";
+    private static final String LOG_FILES_COMMANDS_OUTPUT = "1)OUTPUT-CreateLogFilesCommands.txt";
+    private static final String FTP_LOG_MOVER_OUTPUT = "2)OUTPUT-DownloadLogsCode.txt";
     private static final String LOG_FILE_PATH = "/home/batman/";
     private static final String WINDOWS_LOG_FILE_PATH = "C:\\abc";
     private static final String APP_NAME = "appname";
