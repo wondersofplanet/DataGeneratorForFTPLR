@@ -1,14 +1,8 @@
 package datagenerator;
-
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
+import java.net.InetAddress;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class CombinedLogGenerator {
     // Define constants for file paths and other configurable values
@@ -19,14 +13,30 @@ public class CombinedLogGenerator {
     private static final String LOG_FILE_PATH = "/home/batman/";
     private static final String WINDOWS_LOG_FILE_PATH = "C:\\abc";
     private static final String APP_NAME = "appname";
-    
+
     public static void main(String[] args) {
-        generateLogFilesCommands();
-        generateFTPLogMoverCommands();
+        try {
+            // Check for invalid IP addresses
+           /// checkInvalidIPAddresses();
+
+            // Check for missing servers before generating commands
+            checkMissingServers();
+
+            // Generate commands
+            generateLogFilesCommands();
+            generateFTPLogMoverCommands();
+        } catch (RuntimeException e) {
+            System.err.println(e.getMessage());
+            // Stop execution
+            System.exit(1);
+        }
     }
 
     private static void generateLogFilesCommands() {
         try {
+            // Clear the output file
+            clearFile(LOG_FILES_COMMANDS_OUTPUT);
+
             BufferedReader reader = new BufferedReader(new FileReader(INPUT_SERVERS_FILE));
             BufferedWriter writer = new BufferedWriter(new FileWriter(LOG_FILES_COMMANDS_OUTPUT));
 
@@ -34,19 +44,25 @@ public class CombinedLogGenerator {
             reader.readLine();
 
             String line;
+            Set<String> serversSet = new HashSet<>(); // Use set to handle duplicates
             while ((line = reader.readLine()) != null) {
                 if (!line.trim().isEmpty()) {
                     String server = line.trim();
-                    // Extract last part of the server name
-                    String[] parts = server.split("\\.");
-                    String lastPart = parts[parts.length - 1];
-                    // Generating timestamp
-                    String timestamp = new SimpleDateFormat("MMM_dd").format(Calendar.getInstance().getTime());
-                    String logFileName = APP_NAME + "_log_" + timestamp + "_" + lastPart;
-
-                    writer.write(server + " echo Hello, the memory size of $(hostname -I) is $(awk '/MemTotal/ {print $2}' /proc/meminfo)\n");
-                    writer.write(server + " nohup vmstat 5 >> " + logFileName + ".log &\n");
+                    serversSet.add(server);
                 }
+            }
+
+            // Generate commands for each unique server
+            for (String server : serversSet) {
+                // Extract last part of the server name
+                String[] parts = server.split("\\.");
+                String lastPart = parts[parts.length - 1];
+                // Generating timestamp
+                String timestamp = new SimpleDateFormat("MMM_dd").format(Calendar.getInstance().getTime());
+                String logFileName = APP_NAME + "_log_" + timestamp + "_" + lastPart;
+                writer.write(server + " echo Hello, the memory size of $(hostname -I) is $(awk '/MemTotal/ {print $2}' /proc/meminfo)\n");
+                writer.write(server + " nohup bash -c \"vmstat 5 >> " + logFileName + ".log\" > /dev/null 2>&1 &\n");
+                
             }
 
             reader.close();
@@ -60,15 +76,18 @@ public class CombinedLogGenerator {
 
     private static void generateFTPLogMoverCommands() {
         try {
-            // Read inputServers.txt and store servers in a map
-            Map<String, String> serversMap = new HashMap<>();
+            // Clear the output file
+            clearFile(FTP_LOG_MOVER_OUTPUT);
+
+            // Read inputServers.txt and store servers in a set
+            Set<String> serversSet = new HashSet<>();
             BufferedReader serversReader = new BufferedReader(new FileReader(INPUT_SERVERS_FILE));
             String serversLine;
             // Skip the first line
             serversReader.readLine();
             while ((serversLine = serversReader.readLine()) != null) {
                 if (!serversLine.trim().isEmpty()) {
-                    serversMap.put(serversLine.trim(), "");
+                    serversSet.add(serversLine.trim());
                 }
             }
             serversReader.close();
@@ -82,35 +101,104 @@ public class CombinedLogGenerator {
             while ((connLine = connReader.readLine()) != null) {
                 String[] connParts = connLine.split(",");
                 String server = connParts[2];
-                connectionMap.put(server, "");
-                // Extract last part of the server name
-                String[] parts = server.split("\\.");
-                String lastPart = parts[parts.length - 1];
-                // Generating timestamp
-                String timestamp = new SimpleDateFormat("MMM_dd").format(Calendar.getInstance().getTime());
-                String logFileName = APP_NAME + "_log_" + timestamp + "_" + lastPart;
+                if (serversSet.contains(server)) { // Only process servers in serversSet
+                    // Extract last part of the server name
+                    String[] parts = server.split("\\.");
+                    String lastPart = parts[parts.length - 1];
+                    // Generating timestamp
+                    String timestamp = new SimpleDateFormat("MMM_dd").format(Calendar.getInstance().getTime());
+                    String logFileName = APP_NAME + "_log_" + timestamp + "_" + lastPart;
 
-                // Writing FTP log mover command
-                BufferedWriter ftpWriter = new BufferedWriter(new FileWriter(FTP_LOG_MOVER_OUTPUT, true));
-                ftpWriter.write(connParts[2] + "," + connParts[3] + "," + connParts[0] + "," + connParts[1] +
-                        "," + LOG_FILE_PATH + logFileName + ".log," + WINDOWS_LOG_FILE_PATH + "\n");
-                ftpWriter.close();
+                    // Writing FTP log mover command
+                    BufferedWriter ftpWriter = new BufferedWriter(new FileWriter(FTP_LOG_MOVER_OUTPUT, true));
+                    ftpWriter.write(connParts[2] + "," + connParts[3] + "," + connParts[0] + "," + connParts[1] +
+                            "," + LOG_FILE_PATH + logFileName + ".log," + WINDOWS_LOG_FILE_PATH + "\n");
+                    ftpWriter.close();
 
-                // Update server status in serversMap
-                serversMap.put(server, logFileName);
-            }
-            connReader.close();
-
-            // Check if any servers in inputServers.txt are missing in connection.txt
-            for (Map.Entry<String, String> entry : serversMap.entrySet()) {
-                if (entry.getValue().isEmpty()) {
-                    throw new RuntimeException("Error: Server details for " + entry.getKey() + " not found in " + CONNECTION_FILE);
+                    // Update server status in serversSet
+                    connectionMap.put(server, logFileName);
                 }
             }
+            connReader.close();
 
             System.out.println("Generated " + FTP_LOG_MOVER_OUTPUT + " successfully!");
         } catch (IOException e) {
             System.err.println("Error reading or writing files: " + e.getMessage());
+        }
+    }
+
+    private static void clearFile(String filePath) throws IOException {
+        PrintWriter writer = new PrintWriter(filePath);
+        writer.close();
+    }
+
+    private static void checkMissingServers() {
+        try {
+            // Read inputServers.txt and store servers in a set
+            Set<String> serversSet = new HashSet<>();
+            BufferedReader serversReader = new BufferedReader(new FileReader(INPUT_SERVERS_FILE));
+            String serversLine;
+            // Skip the first line
+            serversReader.readLine();
+            while ((serversLine = serversReader.readLine()) != null) {
+                if (!serversLine.trim().isEmpty()) {
+                    serversSet.add(serversLine.trim());
+                }
+            }
+            serversReader.close();
+
+            // Read connection.txt and validate each server's presence
+            Set<String> connectionSet = new HashSet<>();
+            BufferedReader connReader = new BufferedReader(new FileReader(CONNECTION_FILE));
+            String connLine;
+            // Skip the header line
+            connReader.readLine();
+            while ((connLine = connReader.readLine()) != null) {
+                String[] connParts = connLine.split(",");
+                String server = connParts[2];
+                connectionSet.add(server);
+            }
+            connReader.close();
+
+            // Check for missing servers
+            for (String server : serversSet) {
+                if (!connectionSet.contains(server)) {
+                    throw new RuntimeException("Error: Server '" + server + "' from " + INPUT_SERVERS_FILE + " is missing in " + CONNECTION_FILE);
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading or writing files: " + e.getMessage());
+        }
+    }
+
+    private static void checkInvalidIPAddresses() {
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader(INPUT_SERVERS_FILE));
+            String line;
+            int lineNumber = 1;
+            while ((line = reader.readLine()) != null) {
+                lineNumber++;
+                if (!line.trim().isEmpty()) {
+                    String ipAddress = line.trim();
+                    if (!isValidIPAddress(ipAddress)) {
+                        throw new RuntimeException("Error: Invalid IP address '" + ipAddress + "' on line " + lineNumber + " in " + INPUT_SERVERS_FILE + ". Please ensure it is a valid IPv4 address.");
+                    }
+                }
+            }
+            reader.close();
+        } catch (IOException e) {
+            System.err.println("Error reading or writing files: " + e.getMessage());
+        }
+    }
+
+
+    private static boolean isValidIPAddress(String ipAddress) {
+        try {
+            // Check if the IP address is valid
+            InetAddress.getByName(ipAddress);
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 }
