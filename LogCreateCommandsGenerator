@@ -1,5 +1,4 @@
 package datagenerator;
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileReader;
@@ -7,11 +6,18 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Map;
 
-public class GenerateLogFilesCode {
+public class CombinedLogGenerator {
     public static void main(String[] args) {
+        generateLogFilesCommands();
+        generateFTPLogMoverCommands();
+    }
+
+    private static void generateLogFilesCommands() {
         try {
-            BufferedReader reader = new BufferedReader(new FileReader("servers.txt"));
+            BufferedReader reader = new BufferedReader(new FileReader("inputServers.txt"));
             BufferedWriter writer = new BufferedWriter(new FileWriter("createLogFilesCommands.txt"));
 
             // Skip the first line
@@ -37,6 +43,62 @@ public class GenerateLogFilesCode {
             writer.close();
 
             System.out.println("Generated createLogFilesCommands.txt successfully!");
+        } catch (IOException e) {
+            System.err.println("Error reading or writing files: " + e.getMessage());
+        }
+    }
+
+    private static void generateFTPLogMoverCommands() {
+        try {
+            // Read inputServers.txt and store servers in a map
+            Map<String, String> serversMap = new HashMap<>();
+            BufferedReader serversReader = new BufferedReader(new FileReader("inputServers.txt"));
+            String serversLine;
+            // Skip the first line
+            serversReader.readLine();
+            while ((serversLine = serversReader.readLine()) != null) {
+                if (!serversLine.trim().isEmpty()) {
+                    serversMap.put(serversLine.trim(), "");
+                }
+            }
+            serversReader.close();
+
+            // Read connection.txt and validate each server's presence
+            Map<String, String> connectionMap = new HashMap<>();
+            BufferedReader connReader = new BufferedReader(new FileReader("connection.txt"));
+            String connLine;
+            // Skip the header line
+            connReader.readLine();
+            while ((connLine = connReader.readLine()) != null) {
+                String[] connParts = connLine.split(",");
+                String server = connParts[2];
+                connectionMap.put(server, "");
+                // Extract last part of the server name
+                String[] parts = server.split("\\.");
+                String lastPart = parts[parts.length - 1];
+                // Generating timestamp
+                String timestamp = new SimpleDateFormat("MMM_dd").format(Calendar.getInstance().getTime());
+                String logFileName = "appname_log_" + timestamp + "_" + lastPart;
+
+                // Writing FTP log mover command
+                BufferedWriter ftpWriter = new BufferedWriter(new FileWriter("forFTPLogMover.txt", true));
+                ftpWriter.write(connParts[2] + "," + connParts[3] + "," + connParts[0] + "," + connParts[1] +
+                        ",/home/batman/" + logFileName + ".log,C:\\abc\n");
+                ftpWriter.close();
+
+                // Update server status in serversMap
+                serversMap.put(server, logFileName);
+            }
+            connReader.close();
+
+            // Check if any servers in inputServers.txt are missing in connection.txt
+            for (Map.Entry<String, String> entry : serversMap.entrySet()) {
+                if (entry.getValue().isEmpty()) {
+                    throw new RuntimeException("Error: Server details for " + entry.getKey() + " not found in connection.txt");
+                }
+            }
+
+            System.out.println("Generated forFTPLogMover.txt successfully!");
         } catch (IOException e) {
             System.err.println("Error reading or writing files: " + e.getMessage());
         }
