@@ -1,0 +1,44 @@
+package datagenerator;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+
+public class GenerateLogFilesCode {
+    public static void main(String[] args) {
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader("servers.txt"));
+            BufferedWriter writer = new BufferedWriter(new FileWriter("createLogFilesCommands.txt"));
+
+            // Skip the first line
+            reader.readLine();
+
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!line.trim().isEmpty()) {
+                    String server = line.trim();
+                    // Extract last part of the server name
+                    String[] parts = server.split("\\.");
+                    String lastPart = parts[parts.length - 1];
+                    // Generating timestamp
+                    String timestamp = new SimpleDateFormat("MMM_dd").format(Calendar.getInstance().getTime());
+                    String logFileName = "appname_log_" + timestamp + "_" + lastPart;
+
+                    writer.write(server + " echo Hello, the memory size of $(hostname -I) is $(awk '/MemTotal/ {print $2}' /proc/meminfo)\n");
+                    writer.write(server + " nohup vmstat 5 >> " + logFileName + ".log &\n");
+                }
+            }
+
+            reader.close();
+            writer.close();
+
+            System.out.println("Generated createLogFilesCommands.txt successfully!");
+        } catch (IOException e) {
+            System.err.println("Error reading or writing files: " + e.getMessage());
+        }
+    }
+}
